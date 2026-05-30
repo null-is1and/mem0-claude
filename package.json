@@ -1,0 +1,15 @@
+{
+  "name": "mem0-self-hosted-mcp",
+  "version": "1.0.0",
+  "description": "MCP server for self-hosted mem0 — provides memory tools for Claude Code and other MCP clients",
+  "type": "module",
+  "bin": {
+    "mem0-mcp": "./server.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
