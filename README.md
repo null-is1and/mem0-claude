@@ -80,10 +80,6 @@ When in doubt, save — future sessions benefit from over-remembering.
 
 - **`get_memories` returns at most 20 results.** The self-hosted mem0 API caps the `/memories` endpoint at 20 items with no pagination support. Use `search_memories` instead — it accepts a `limit` parameter (e.g. `limit: 100`) and returns results ranked by relevance, making it both more complete and more useful for large stores.
 
-## Auto mode / permissions
-
-Claude Code auto-mode and permission rulesets are per-deployment infrastructure config (they reference your own hosts and services), so they aren't shipped in this public repo. Keep them in a private repo and apply them per machine from there.
-
 ## Manual install
 
 If you'd rather not pipe to bash, clone and run the Node installer directly:
