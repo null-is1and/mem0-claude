@@ -73,11 +73,21 @@ async function main() {
     const projectName = (input.cwd || "").split("/").pop() || "unknown";
     const summary = selected.map((m) => `${m.role}: ${m.content}`).join("\n");
 
-    const prompt = `Context is about to be compacted. Save the key facts from this session that should survive compaction:
-- What was being worked on and current state
-- Decisions made and their rationale
-- Problems encountered and solutions found
-- Files modified and why
+    const prompt = `Context is about to be compacted. Extract ONLY durable facts that a future AI assistant would need — things true beyond this session that aren't obvious from code or git history.
+
+INCLUDE:
+- Architectural decisions and WHY they were made
+- Infrastructure topology changes (new services, endpoints, config locations)
+- Non-obvious gotchas or debugging lessons learned
+- User preferences for how they like to work
+
+EXCLUDE (do not extract):
+- Session narrative ("user asked X", "assistant did Y")
+- Procedural steps ("committed", "pushed", "ran tests", "deleted")
+- Transient state (counts, errors, task progress)
+- Facts derivable from code, git log, or config files
+
+If there are NO durable facts worth saving, respond with exactly: NO_DURABLE_FACTS
 
 Project: ${projectName}
 Session so far:

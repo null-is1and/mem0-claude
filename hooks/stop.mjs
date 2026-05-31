@@ -89,13 +89,22 @@ async function main() {
 
     const summary = selected.map((m) => `${m.role}: ${m.content}`).join("\n");
 
-    const prompt = `Extract key facts, decisions, and outcomes from this session. Focus on:
-- What was built, fixed, or configured
-- Technical decisions made and why
-- Problems encountered and how they were resolved
-- User preferences or workflow patterns discovered
+    const prompt = `Extract ONLY durable facts from this session that a future AI assistant would need. A durable fact is something true beyond this session — an architectural decision, an infrastructure detail, a debugging lesson, or a user preference.
 
-Ignore: conversational filler, assistant process narration, "user asked X" meta-commentary.
+INCLUDE (only if not already obvious from code/git):
+- Architectural decisions and WHY they were made
+- Infrastructure topology changes (new services, endpoints, config locations)
+- Non-obvious gotchas or debugging lessons learned
+- User preferences for how they like to work
+
+EXCLUDE (do not extract these, even if they seem important):
+- Session narrative ("user asked X", "assistant replied Y", "user confirmed Z")
+- Procedural steps ("committed to repo", "pushed to main", "ran tests", "deleted entries")
+- Transient state ("count is now 66", "backend returned 502", "task completed")
+- Tool/command output summaries ("assistant ran curl and got...", "background task finished")
+- Facts derivable from code, git log, or config files
+
+If the session contains NO durable facts worth saving, respond with exactly: NO_DURABLE_FACTS
 
 Project: ${projectName}
 Session:
