@@ -17,9 +17,18 @@ const NOISE_PATTERNS = [
   /^(let me|i'll|now let me|checking|looking)/i,
 ];
 
+// Markers injected by the SessionStart/UserPromptSubmit hooks — if a message
+// contains these, it's echoed mem0 context, not original conversation.
+const ECHO_MARKERS = [
+  "mem0 Cross-Session Memory",
+  "memories were retrieved from previous sessions",
+  "[mem0 context] Relevant memories",
+];
+
 function isNoise(text) {
   const trimmed = text.trim();
   if (trimmed.length < 15) return true;
+  if (ECHO_MARKERS.some((m) => trimmed.includes(m))) return true;
   return NOISE_PATTERNS.some((p) => p.test(trimmed));
 }
 

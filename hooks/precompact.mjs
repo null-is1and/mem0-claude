@@ -8,6 +8,18 @@ import { getWatermark, setWatermark } from "./watermark.mjs";
 const MEM0_HOST = process.env.MEM0_HOST;
 const MEM0_USER_ID = process.env.MEM0_USER_ID || "claude-code";
 
+// Markers injected by the SessionStart/UserPromptSubmit hooks — if a message
+// contains these, it's echoed mem0 context, not original conversation.
+const ECHO_MARKERS = [
+  "mem0 Cross-Session Memory",
+  "memories were retrieved from previous sessions",
+  "[mem0 context] Relevant memories",
+];
+
+function isEchoedContext(text) {
+  return ECHO_MARKERS.some((m) => text.includes(m));
+}
+
 function extractText(entry) {
   if (entry.type === "user" && entry.message?.content) {
     const text =
@@ -17,7 +29,9 @@ function extractText(entry) {
             .filter((b) => b.type === "text")
             .map((b) => b.text)
             .join(" ");
-    return text.trim();
+    const trimmed = text.trim();
+    if (isEchoedContext(trimmed)) return null;
+    return trimmed;
   }
   if (entry.type === "assistant" && entry.message?.content) {
     const text = entry.message.content
