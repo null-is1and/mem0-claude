@@ -16,6 +16,9 @@ const mem0User = process.env.MEM0_USER_ID || args.find((a) => a.startsWith("--us
 // Optional: a LiteLLM key enables client-side fact extraction in the hooks.
 // Without it the hooks fall back to mem0's server-side extractor.
 const mem0LlmKey = process.env.MEM0_LLM_KEY || args.find((a) => a.startsWith("--llm-key="))?.split("=")[1];
+// Optional: the LLM endpoint for client-side extraction. No internal host is
+// baked into this public repo, so the endpoint is supplied here or via env.
+const mem0LlmBase = process.env.MEM0_LLM_BASE || args.find((a) => a.startsWith("--llm-base="))?.split("=")[1];
 
 if (!mem0Host) {
   console.error("  [mem0] MEM0_HOST is required (env var or --host=https://your-mem0-host).");
@@ -112,6 +115,7 @@ async function installHooks() {
     // one (--llm-key= / MEM0_LLM_KEY) for an extraction hook.
     const env = { ...(existing ? parseEnv(existing.command) : {}), ...baseEnv };
     if (def.llm && mem0LlmKey) env.MEM0_LLM_KEY = mem0LlmKey;
+    if (def.llm && mem0LlmBase) env.MEM0_LLM_BASE = mem0LlmBase;
 
     const prefix = Object.entries(env).map(([k, v]) => `${k}=${v}`).join(" ");
     const command = `${prefix} node ${resolve(hooksDir, def.file)}`;

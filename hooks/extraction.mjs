@@ -6,9 +6,13 @@
 // EXCLUDE rules are obeyed reliably — unlike mem0's server-side extractor, which
 // wraps our prompt in its own scaffolding and leaks ~25% narrative.
 //
-// Fallback path (no key): POST the real conversation as `messages` and steer
-// mem0's own extractor via the `prompt` field. Weaker, but needs no credential —
-// keeps hosts that haven't been redeployed with the key working.
+// Fallback path (no key or no MEM0_LLM_BASE): POST the real conversation as
+// `messages` and steer mem0's own extractor via the `prompt` field. Weaker, but
+// needs no credential — keeps hosts that haven't been redeployed working.
+//
+// No LLM endpoint is hardcoded here (this repo is public). The client-side path
+// requires both MEM0_LLM_KEY and MEM0_LLM_BASE in the environment; without a
+// base URL it falls back automatically.
 
 export const EXTRACTION_PROMPT = `You extract ONLY durable facts that a future engineer would need — things true beyond this session that are not obvious from code, git history, or config files.
 
@@ -26,7 +30,6 @@ EXCLUDE entirely (never return these):
 
 If the conversation contains nothing durable, return an empty list.`;
 
-const DEFAULT_LLM_BASE = "https://your-litellm-host/v1";
 const DEFAULT_LLM_MODEL = "gpt-5.4-mini";
 const MAX_FACTS = 12;
 const MAX_FACT_LEN = 500;
@@ -60,8 +63,9 @@ function parseFacts(content) {
 // Throws on transport/HTTP failure so the caller can skip the watermark advance
 // and retry on the next hook.
 export async function distill(messages, { apiKey, model, baseUrl } = {}) {
+  if (!baseUrl) throw new Error("MEM0_LLM_BASE not set");
   const transcript = messages.map((m) => `${m.role}: ${m.content}`).join("\n");
-  const res = await fetch(`${baseUrl || DEFAULT_LLM_BASE}/chat/completions`, {
+  const res = await fetch(`${baseUrl}/chat/completions`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -89,8 +93,10 @@ export async function distill(messages, { apiKey, model, baseUrl } = {}) {
 // Distill (or fall back) and write to mem0. Returns { ok, stored }.
 // Throws only on a hard failure that should NOT advance the watermark.
 export async function summarizeAndStore({ host, llmKey, messages, userId, metadata }) {
-  // Preferred: client-side distill + verbatim store.
-  if (llmKey) {
+  // Preferred: client-side distill + verbatim store. Requires both a key and a
+  // base URL (no LLM endpoint is hardcoded in this public repo); otherwise we
+  // fall through to the server-side extractor below.
+  if (llmKey && process.env.MEM0_LLM_BASE) {
     const facts = await distill(messages, {
       apiKey: llmKey,
       model: process.env.MEM0_LLM_MODEL,
