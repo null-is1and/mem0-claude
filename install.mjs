@@ -77,36 +77,55 @@ async function installHooks() {
   const settings = await readJson(settingsPath);
   if (!settings.hooks) settings.hooks = {};
 
-  const envPrefix =
-    `MEM0_HOST=${mem0Host} MEM0_USER_ID=${mem0User}` +
-    (mem0LlmKey ? ` MEM0_LLM_KEY=${mem0LlmKey}` : "");
+  const baseEnv = { MEM0_HOST: mem0Host, MEM0_USER_ID: mem0User };
 
   const hookDefs = [
     { event: "SessionStart", file: "context.mjs", timeout: 15 },
     { event: "UserPromptSubmit", file: "prompt.mjs", timeout: 5 },
-    { event: "PreCompact", file: "precompact.mjs", timeout: 20 },
-    { event: "Stop", file: "stop.mjs", timeout: 30 },
+    { event: "PreCompact", file: "precompact.mjs", timeout: 20, llm: true },
+    { event: "Stop", file: "stop.mjs", timeout: 30, llm: true },
   ];
+
+  // Parse the leading "KEY=val …" tokens of a hook command (everything before `node`).
+  const parseEnv = (command) => {
+    const env = {};
+    for (const tok of (command || "").split(/\s+/)) {
+      if (tok === "node") break;
+      const i = tok.indexOf("=");
+      if (i > 0) env[tok.slice(0, i)] = tok.slice(i + 1);
+    }
+    return env;
+  };
+  const findHook = (arr, file) => {
+    for (const e of arr) for (const h of e.hooks || []) if (h.command?.includes(file)) return h;
+    return null;
+  };
 
   for (const def of hookDefs) {
     if (!settings.hooks[def.event]) settings.hooks[def.event] = [];
+    const existing = findHook(settings.hooks[def.event], def.file);
 
-    const exists = settings.hooks[def.event].some((e) =>
-      e.hooks?.some((h) => h.command?.includes(def.file))
-    );
+    // Merge env: preserve whatever is already on the command (e.g. a MEM0_LLM_KEY
+    // distributed via claude-config) and overlay the values this install owns.
+    // A re-install thus updates host/user/path/timeout idempotently without
+    // stripping a distributed key. Only sets the key itself when install is given
+    // one (--llm-key= / MEM0_LLM_KEY) for an extraction hook.
+    const env = { ...(existing ? parseEnv(existing.command) : {}), ...baseEnv };
+    if (def.llm && mem0LlmKey) env.MEM0_LLM_KEY = mem0LlmKey;
 
-    if (!exists) {
+    const prefix = Object.entries(env).map(([k, v]) => `${k}=${v}`).join(" ");
+    const command = `${prefix} node ${resolve(hooksDir, def.file)}`;
+
+    if (existing) {
+      existing.command = command;
+      existing.timeout = def.timeout;
+      log(`${def.event} hook updated`);
+    } else {
       settings.hooks[def.event].push({
         matcher: "",
-        hooks: [{
-          type: "command",
-          command: `${envPrefix} node ${resolve(hooksDir, def.file)}`,
-          timeout: def.timeout,
-        }],
+        hooks: [{ type: "command", command, timeout: def.timeout }],
       });
       log(`${def.event} hook added`);
-    } else {
-      log(`${def.event} hook already exists`);
     }
   }
 
