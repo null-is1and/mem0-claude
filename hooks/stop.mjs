@@ -4,6 +4,7 @@
 
 import { readFile } from "node:fs/promises";
 import { getWatermark, setWatermark } from "./watermark.mjs";
+import { EXTRACTION_PROMPT } from "./extraction.mjs";
 
 const MEM0_HOST = process.env.MEM0_HOST;
 const MEM0_USER_ID = process.env.MEM0_USER_ID || "claude-code";
@@ -96,35 +97,16 @@ async function main() {
     const selected = messages.slice(-MAX_MESSAGES);
     const projectName = (input.cwd || "").split("/").pop() || "unknown";
 
-    const summary = selected.map((m) => `${m.role}: ${m.content}`).join("\n");
-
-    const prompt = `Extract ONLY durable facts from this session that a future AI assistant would need. A durable fact is something true beyond this session — an architectural decision, an infrastructure detail, a debugging lesson, or a user preference.
-
-INCLUDE (only if not already obvious from code/git):
-- Architectural decisions and WHY they were made
-- Infrastructure topology changes (new services, endpoints, config locations)
-- Non-obvious gotchas or debugging lessons learned
-- User preferences for how they like to work
-
-EXCLUDE (do not extract these, even if they seem important):
-- Session narrative ("user asked X", "assistant replied Y", "user confirmed Z")
-- Procedural steps ("committed to repo", "pushed to main", "ran tests", "deleted entries")
-- Transient state ("count is now 66", "backend returned 502", "task completed")
-- Tool/command output summaries ("assistant ran curl and got...", "background task finished")
-- Facts derivable from code, git log, or config files
-
-If the session contains NO durable facts worth saving, respond with exactly: NO_DURABLE_FACTS
-
-Project: ${projectName}
-Session:
-${summary}`;
-
+    // Send the real conversation as `messages` and steer extraction via the
+    // `prompt` field — the only channel mem0's server-side extractor obeys.
+    // (Instructions placed in message content are mined as data, not followed.)
     const res = await fetch(`${MEM0_HOST}/memories`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        messages: [{ role: "user", content: prompt }],
+        messages: selected,
         user_id: MEM0_USER_ID,
+        prompt: EXTRACTION_PROMPT,
         metadata: {
           type: "session_summary",
           project: projectName,

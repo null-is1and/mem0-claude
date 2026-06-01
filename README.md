@@ -59,6 +59,12 @@ All hooks are non-fatal — if mem0 is unreachable, Claude Code continues normal
 
 `precompact.mjs` and `stop.mjs` both summarize the transcript, so naively they'd double-write near-identical memories that mem0's own dedup doesn't catch. `watermark.mjs` tracks how many transcript lines each session has already summarized (in `hooks/.state/<session_id>.json`, gitignored); each hook only summarizes the delta since the last summary and advances the mark on a successful write. No overlap, nothing lost, no similarity-threshold guessing.
 
+### Extraction quality (prompt override)
+
+mem0's `/memories` add endpoint runs its **own** extraction LLM over whatever you POST. This means instructions placed in the message *content* ("only save durable facts, ignore chit-chat") don't steer anything — mem0 treats them as text to mine, so session narrative ("user asked…", "ran /compact"), transient state ("76 entries"), and even your own instruction text leak back in as memories.
+
+The supported channel is the **`prompt`** field on the add request, which overrides mem0's server-side extractor instructions. The summarizer hooks therefore POST the real conversation as `messages` and pass the INCLUDE/EXCLUDE rules (`hooks/extraction.mjs`) as `prompt`. mem0's extractor then follows them — on identical noisy input this drops narrative/procedural/transient lines that the default extractor would otherwise store. No extra LLM credential is needed; it reuses the LLM the mem0 server is already configured with.
+
 ## CLAUDE.md integration
 
 Add to your `CLAUDE.md` so Claude proactively uses memory during sessions:
