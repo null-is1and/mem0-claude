@@ -4,10 +4,11 @@
 
 import { readFile } from "node:fs/promises";
 import { getWatermark, setWatermark } from "./watermark.mjs";
-import { EXTRACTION_PROMPT } from "./extraction.mjs";
+import { summarizeAndStore } from "./extraction.mjs";
 
 const MEM0_HOST = process.env.MEM0_HOST;
 const MEM0_USER_ID = process.env.MEM0_USER_ID || "claude-code";
+const MEM0_LLM_KEY = process.env.MEM0_LLM_KEY;
 const MAX_MESSAGES = 20;
 const MIN_MESSAGES = 3;
 
@@ -97,28 +98,24 @@ async function main() {
     const selected = messages.slice(-MAX_MESSAGES);
     const projectName = (input.cwd || "").split("/").pop() || "unknown";
 
-    // Send the real conversation as `messages` and steer extraction via the
-    // `prompt` field — the only channel mem0's server-side extractor obeys.
-    // (Instructions placed in message content are mined as data, not followed.)
-    const res = await fetch(`${MEM0_HOST}/memories`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        messages: selected,
-        user_id: MEM0_USER_ID,
-        prompt: EXTRACTION_PROMPT,
-        metadata: {
-          type: "session_summary",
-          project: projectName,
-          session_id: input.session_id,
-        },
-      }),
-      signal: AbortSignal.timeout(15000),
+    // Distill the conversation to durable facts and store them. With a key this
+    // runs client-side (our prompt is the only instruction); without one it
+    // falls back to mem0's server-side extractor steered by the prompt field.
+    const { ok } = await summarizeAndStore({
+      host: MEM0_HOST,
+      llmKey: MEM0_LLM_KEY,
+      messages: selected,
+      userId: MEM0_USER_ID,
+      metadata: {
+        type: "session_summary",
+        project: projectName,
+        session_id: input.session_id,
+      },
     });
 
     // Advance the watermark only on success, so a failed write is retried
     // (and re-covered) by the next hook rather than silently lost.
-    if (res.ok) await setWatermark(input.session_id, lines.length);
+    if (ok) await setWatermark(input.session_id, lines.length);
   } catch {
     // Non-fatal
   }

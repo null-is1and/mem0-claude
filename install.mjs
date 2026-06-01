@@ -13,6 +13,9 @@ const skipHooks = flags.has("--no-hooks");
 const skipMcp = flags.has("--no-mcp");
 const mem0Host = process.env.MEM0_HOST || args.find((a) => a.startsWith("--host="))?.split("=")[1];
 const mem0User = process.env.MEM0_USER_ID || args.find((a) => a.startsWith("--user="))?.split("=")[1] || "claude-code";
+// Optional: a LiteLLM key enables client-side fact extraction in the hooks.
+// Without it the hooks fall back to mem0's server-side extractor.
+const mem0LlmKey = process.env.MEM0_LLM_KEY || args.find((a) => a.startsWith("--llm-key="))?.split("=")[1];
 
 if (!mem0Host) {
   console.error("  [mem0] MEM0_HOST is required (env var or --host=https://your-mem0-host).");
@@ -74,7 +77,9 @@ async function installHooks() {
   const settings = await readJson(settingsPath);
   if (!settings.hooks) settings.hooks = {};
 
-  const envPrefix = `MEM0_HOST=${mem0Host} MEM0_USER_ID=${mem0User}`;
+  const envPrefix =
+    `MEM0_HOST=${mem0Host} MEM0_USER_ID=${mem0User}` +
+    (mem0LlmKey ? ` MEM0_LLM_KEY=${mem0LlmKey}` : "");
 
   const hookDefs = [
     { event: "SessionStart", file: "context.mjs", timeout: 15 },

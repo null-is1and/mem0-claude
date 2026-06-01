@@ -59,11 +59,18 @@ All hooks are non-fatal — if mem0 is unreachable, Claude Code continues normal
 
 `precompact.mjs` and `stop.mjs` both summarize the transcript, so naively they'd double-write near-identical memories that mem0's own dedup doesn't catch. `watermark.mjs` tracks how many transcript lines each session has already summarized (in `hooks/.state/<session_id>.json`, gitignored); each hook only summarizes the delta since the last summary and advances the mark on a successful write. No overlap, nothing lost, no similarity-threshold guessing.
 
-### Extraction quality (prompt override)
+### Extraction quality (client-side distill)
 
-mem0's `/memories` add endpoint runs its **own** extraction LLM over whatever you POST. This means instructions placed in the message *content* ("only save durable facts, ignore chit-chat") don't steer anything — mem0 treats them as text to mine, so session narrative ("user asked…", "ran /compact"), transient state ("76 entries"), and even your own instruction text leak back in as memories.
+mem0's `/memories` add endpoint runs its **own** extraction LLM over whatever you POST. Instructions placed in the message *content* don't steer anything — mem0 treats them as text to mine, so session narrative ("user asked…", "ran /compact"), transient state ("76 entries"), and even your own instruction text leak back in as memories. mem0 does expose a **`prompt`** field that overrides its extractor instructions, but it wraps your prompt in its own scaffolding and the steer is only partial — in practice ~25% of stored entries are still narrative.
 
-The supported channel is the **`prompt`** field on the add request, which overrides mem0's server-side extractor instructions. The summarizer hooks therefore POST the real conversation as `messages` and pass the INCLUDE/EXCLUDE rules (`hooks/extraction.mjs`) as `prompt`. mem0's extractor then follows them — on identical noisy input this drops narrative/procedural/transient lines that the default extractor would otherwise store. No extra LLM credential is needed; it reuses the LLM the mem0 server is already configured with.
+The hooks therefore prefer **client-side extraction**: when `MEM0_LLM_KEY` is set, each summarizer hook calls an LLM directly (LiteLLM-compatible `/chat/completions`), distills the conversation into a JSON array of durable facts using the INCLUDE/EXCLUDE rules in `hooks/extraction.mjs`, and stores those facts **verbatim** with `infer:false` — so mem0 never re-extracts and nothing leaks. Because our prompt is the only instruction the model sees, the EXCLUDE rules are obeyed reliably.
+
+Configure via env (baked into the hook commands by `install.mjs`):
+- `MEM0_LLM_KEY` — API key for the extraction LLM. **Without it the hooks fall back** to mem0's server-side extractor steered by the `prompt` field (weaker, but no credential needed — keeps un-keyed hosts working).
+- `MEM0_LLM_MODEL` — chat model (default `gpt-5.4-mini`).
+- `MEM0_LLM_BASE` — OpenAI-compatible base URL (default `https://your-litellm-host/v1`).
+
+Install with the key: `… MEM0_LLM_KEY=sk-… bash` (or `--llm-key=sk-…`). Use a model that follows instructions tightly and supports JSON output; a dedicated low-rate key scoped to just that model is recommended.
 
 ## CLAUDE.md integration
 
