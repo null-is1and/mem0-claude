@@ -19,6 +19,11 @@ const mem0LlmKey = process.env.MEM0_LLM_KEY || args.find((a) => a.startsWith("--
 // Optional: the LLM endpoint for client-side extraction. No internal host is
 // baked into this public repo, so the endpoint is supplied here or via env.
 const mem0LlmBase = process.env.MEM0_LLM_BASE || args.find((a) => a.startsWith("--llm-base="))?.split("=")[1];
+// Optional: mem0 server API key (X-API-Key). Only needed when the server runs
+// with auth enabled (upstream default); AUTH_DISABLED deployments can omit it.
+const mem0ApiKey = process.env.MEM0_API_KEY || args.find((a) => a.startsWith("--api-key="))?.split("=")[1];
+// Optional: days before hook-written session summaries expire (default 60, 0 = never).
+const mem0SummaryTtl = process.env.MEM0_SUMMARY_TTL_DAYS || args.find((a) => a.startsWith("--summary-ttl="))?.split("=")[1];
 
 if (!mem0Host) {
   console.error("  [mem0] MEM0_HOST is required (env var or --host=https://your-mem0-host).");
@@ -47,29 +52,27 @@ async function writeJson(path, data) {
 }
 
 async function installMcp() {
+  // User scope is the top-level `mcpServers` map in ~/.claude.json. Claude Code
+  // does not read ~/.claude/.mcp.json, so the global install must go here.
   const mcpPath = isGlobal
-    ? resolve(claudeDir, ".mcp.json")
+    ? resolve(home, ".claude.json")
     : resolve(process.cwd(), ".mcp.json");
 
   const mcp = await readJson(mcpPath);
   if (!mcp.mcpServers) mcp.mcpServers = {};
 
-  if (mcp.mcpServers.mem0) {
-    log(`MCP server already configured in ${mcpPath}`);
-    return;
-  }
+  const env = { MEM0_HOST: mem0Host, MEM0_USER_ID: mem0User };
+  if (mem0ApiKey) env.MEM0_API_KEY = mem0ApiKey;
 
+  const existed = Boolean(mcp.mcpServers.mem0);
   mcp.mcpServers.mem0 = {
     command: "node",
     args: [resolve(hooksDir, "..", "server.mjs")],
-    env: {
-      MEM0_HOST: mem0Host,
-      MEM0_USER_ID: mem0User,
-    },
+    env,
   };
 
   await writeJson(mcpPath, mcp);
-  log(`MCP server added to ${mcpPath}`);
+  log(`MCP server ${existed ? "updated" : "added"} in ${mcpPath}`);
 }
 
 async function installHooks() {
@@ -81,6 +84,7 @@ async function installHooks() {
   if (!settings.hooks) settings.hooks = {};
 
   const baseEnv = { MEM0_HOST: mem0Host, MEM0_USER_ID: mem0User };
+  if (mem0ApiKey) baseEnv.MEM0_API_KEY = mem0ApiKey;
 
   const hookDefs = [
     { event: "SessionStart", file: "context.mjs", timeout: 15 },
@@ -116,6 +120,7 @@ async function installHooks() {
     const env = { ...(existing ? parseEnv(existing.command) : {}), ...baseEnv };
     if (def.llm && mem0LlmKey) env.MEM0_LLM_KEY = mem0LlmKey;
     if (def.llm && mem0LlmBase) env.MEM0_LLM_BASE = mem0LlmBase;
+    if (def.llm && mem0SummaryTtl !== undefined) env.MEM0_SUMMARY_TTL_DAYS = mem0SummaryTtl;
 
     const prefix = Object.entries(env).map(([k, v]) => `${k}=${v}`).join(" ");
     const command = `${prefix} node ${resolve(hooksDir, def.file)}`;

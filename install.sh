@@ -9,6 +9,9 @@
 # Env vars:
 #   MEM0_HOST     (required) base URL of your mem0 server
 #   MEM0_USER_ID  (optional) memory namespace, default "claude-code"
+#   MEM0_API_KEY  (optional) server API key, only if the server has auth enabled
+#   MEM0_SUMMARY_TTL_DAYS (optional) days before hook-written summaries expire (default 60, 0 = never)
+#   MEM0_LLM_KEY / MEM0_LLM_BASE / MEM0_LLM_MODEL (optional) client-side extraction LLM
 # Args:
 #   --project     install into the current project (.mcp.json / .claude) instead of globally
 
@@ -34,10 +37,11 @@ curl -fsSL "https://github.com/${REPO}/archive/refs/heads/${BRANCH}.tar.gz" \
   | tar xz -C "${TMP}" --strip-components=1
 
 # Copy runtime files (MCP server, installer, hooks) into place.
-cp -R "${TMP}/server.mjs" "${TMP}/install.mjs" "${TMP}/package.json" "${TMP}/hooks" "${DEST}/"
+cp -R "${TMP}/server.mjs" "${TMP}/install.mjs" "${TMP}/package.json" "${TMP}/lib" "${TMP}/hooks" "${DEST}/"
 
 ( cd "${DEST}" && npm install --silent --no-audit --no-fund )
 
+# Optional vars (MEM0_API_KEY, MEM0_SUMMARY_TTL_DAYS, MEM0_LLM_*) pass through the environment.
 MEM0_HOST="${MEM0_HOST}" MEM0_USER_ID="${MEM0_USER_ID}" node "${DEST}/install.mjs" ${SCOPE}
 
 echo "  [mem0] Done. Restart Claude Code to activate."
