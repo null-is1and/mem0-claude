@@ -5,6 +5,7 @@
 import { readFile } from "node:fs/promises";
 import { getWatermark, setWatermark } from "./watermark.mjs";
 import { summarizeAndStore } from "./extraction.mjs";
+import { projectAgentId, expirationDate, summaryTtlDays } from "../lib/scope.mjs";
 
 const MEM0_HOST = process.env.MEM0_HOST;
 const MEM0_USER_ID = process.env.MEM0_USER_ID || "claude-code";
@@ -96,6 +97,9 @@ async function main() {
       llmKey: MEM0_LLM_KEY,
       messages: selected,
       userId: MEM0_USER_ID,
+      agentId: projectAgentId(input.cwd),
+      runId: input.session_id,
+      expirationDate: expirationDate(summaryTtlDays()),
       metadata: {
         type: "precompact_summary",
         project: projectName,

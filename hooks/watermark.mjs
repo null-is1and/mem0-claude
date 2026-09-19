@@ -5,7 +5,10 @@
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { resolve, dirname } from "node:path";
 
-const STATE_DIR = resolve(dirname(new URL(import.meta.url).pathname), ".state");
+// Override with MEM0_STATE_DIR (tests, or a shared location on hosts that mount
+// the hooks read-only).
+const STATE_DIR =
+  process.env.MEM0_STATE_DIR || resolve(dirname(new URL(import.meta.url).pathname), ".state");
 
 function stateFile(sessionId) {
   // session_id is a UUID, safe to use directly as a filename

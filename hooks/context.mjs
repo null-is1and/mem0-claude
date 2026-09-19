@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 // SessionStart hook — injects mem0 memories as additional context
 
-const MEM0_HOST = process.env.MEM0_HOST;
-const MEM0_USER_ID = process.env.MEM0_USER_ID || "claude-code";
+import { clientFromEnv } from "../lib/client.mjs";
+import { projectAgentId } from "../lib/scope.mjs";
+
+const MAX_MEMORIES = 20;
 
 async function main() {
   let input;
@@ -22,26 +24,28 @@ async function main() {
   const projectName = (input.cwd || "").split("/").pop() || "project";
 
   try {
+    const mem0 = clientFromEnv(process.env, { timeoutMs: 5000 });
+
+    // Personal (user-scoped) queries plus one project-scoped query so memories
+    // the hooks wrote for this repo (agent_id) surface even when their text
+    // doesn't mention the project by name.
     const queries = [
-      `${projectName} architecture conventions setup`,
-      "recent decisions and session context",
-      "user preferences and workflow patterns",
+      { query: `${projectName} architecture conventions setup` },
+      { query: "recent decisions and session context" },
+      { query: "user preferences and workflow patterns" },
+      { query: "project conventions decisions gotchas", agentId: projectAgentId(input.cwd) },
     ];
 
     const seen = new Set();
     const memories = [];
 
-    for (const query of queries) {
-      const res = await fetch(`${MEM0_HOST}/search`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query, user_id: MEM0_USER_ID, top_k: 10 }),
-        signal: AbortSignal.timeout(5000),
-      });
-
-      if (!res.ok) continue;
-
-      const data = await res.json();
+    for (const q of queries) {
+      let data;
+      try {
+        data = await mem0.search({ ...q, topK: 10 });
+      } catch {
+        continue;
+      }
       for (const m of data.results || []) {
         if (!seen.has(m.id)) {
           seen.add(m.id);
@@ -58,7 +62,7 @@ async function main() {
     memories.sort((a, b) => (b.score || 0) - (a.score || 0));
 
     const lines = memories
-      .slice(0, 20)
+      .slice(0, MAX_MEMORIES)
       .map((m, i) => `${i + 1}. ${m.memory}`)
       .join("\n");
 
