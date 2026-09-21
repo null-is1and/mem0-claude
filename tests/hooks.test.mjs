@@ -121,3 +121,23 @@ for (const [file, type] of [["stop.mjs", "session_summary"], ["precompact.mjs", 
       assert.equal("expiration_date" in add.body, false);
     }));
 }
+
+test("stop hook uses client-side extraction when the key arrives as LITELLM_API_KEY (claude-config's name)", () =>
+  withMem0({ llmFacts: [{ text: "coeus runs the sync timer", category: "project_knowledge" }] }, async (mem0, env) => {
+    await runHook("stop.mjs", { transcript_path: await transcript(conversation), session_id: "sess-alias", cwd: "/x/p" },
+      { ...env, MEM0_LLM_KEY: "", LITELLM_API_KEY: "lk-1", MEM0_LLM_BASE: `${mem0.host}/v1` });
+    const llm = mem0.requests.find((r) => r.path === "/v1/chat/completions");
+    assert.ok(llm, "extraction LLM was called");
+    assert.equal(llm.headers.authorization, "Bearer lk-1");
+    const add = mem0.requests.find((r) => r.method === "POST" && r.path === "/memories");
+    assert.equal(add.body.infer, false);
+    assert.equal(add.body.metadata.category, "project_knowledge");
+  }));
+
+test("MEM0_LLM_KEY still wins over LITELLM_API_KEY when both are set", () =>
+  withMem0({ llmFacts: [{ text: "f", category: "results" }] }, async (mem0, env) => {
+    await runHook("precompact.mjs", { transcript_path: await transcript(conversation), session_id: "sess-both", cwd: "/x/p" },
+      { ...env, MEM0_LLM_KEY: "mk-2", LITELLM_API_KEY: "lk-1", MEM0_LLM_BASE: `${mem0.host}/v1` });
+    const llm = mem0.requests.find((r) => r.path === "/v1/chat/completions");
+    assert.equal(llm.headers.authorization, "Bearer mk-2");
+  }));

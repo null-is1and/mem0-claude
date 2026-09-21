@@ -92,7 +92,7 @@ The hooks therefore prefer **client-side extraction**: when `MEM0_LLM_KEY` is se
 > Upstream has since added a server-side `custom_instructions` config key that replaces the extractor prompt outright. It may make the client-side path unnecessary, but it has to be set through `POST /configure`, which the self-hosted image has historically mishandled; test on a scratch instance before relying on it.
 
 Configure via env (baked into the hook commands by `install.mjs`):
-- `MEM0_LLM_KEY` — API key for the extraction LLM. **Without it the hooks fall back** to mem0's server-side extractor steered by the `prompt` field (weaker, but no credential needed — keeps un-keyed hosts working).
+- `MEM0_LLM_KEY` — API key for the extraction LLM (`LITELLM_API_KEY` is accepted as an alias, so a key distributed through a settings `env` block under that name works unchanged). **Without it the hooks fall back** to mem0's server-side extractor steered by the `prompt` field (weaker, no categories, but no credential needed — keeps un-keyed hosts working).
 - `MEM0_LLM_MODEL` — chat model (default `gpt-5.4-mini`).
 - `MEM0_LLM_BASE` — OpenAI-compatible base URL for the extraction LLM (e.g. `https://your-litellm-host/v1`). Required for the client-side path; if unset, the hooks fall back to mem0's server-side extractor.
 
