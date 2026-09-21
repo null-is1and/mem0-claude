@@ -9,7 +9,8 @@ import { projectAgentId, expirationDate, summaryTtlDays } from "../lib/scope.mjs
 
 const MEM0_HOST = process.env.MEM0_HOST;
 const MEM0_USER_ID = process.env.MEM0_USER_ID || "claude-code";
-const MEM0_LLM_KEY = process.env.MEM0_LLM_KEY;
+// claude-config distributes the LiteLLM key as LITELLM_API_KEY; accept both names.
+const MEM0_LLM_KEY = process.env.MEM0_LLM_KEY || process.env.LITELLM_API_KEY;
 
 // Markers injected by the SessionStart/UserPromptSubmit hooks — if a message
 // contains these, it's echoed mem0 context, not original conversation.

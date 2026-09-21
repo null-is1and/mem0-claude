@@ -3,7 +3,7 @@
 // end-to-end over real HTTP.
 import { createServer } from "node:http";
 
-export async function startFakeMem0({ searchResults = [] } = {}) {
+export async function startFakeMem0({ searchResults = [], llmFacts = null } = {}) {
   const requests = [];
   const server = createServer((req, res) => {
     let raw = "";
@@ -19,6 +19,10 @@ export async function startFakeMem0({ searchResults = [] } = {}) {
       });
       res.setHeader("Content-Type", "application/json");
       if (url.pathname === "/search") return res.end(JSON.stringify({ results: searchResults }));
+      // Doubles as an OpenAI-compatible extraction LLM when llmFacts is given.
+      if (url.pathname === "/v1/chat/completions") {
+        return res.end(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ facts: llmFacts || [] }) } }] }));
+      }
       if (url.pathname === "/entities") return res.end(JSON.stringify([{ id: "doug", type: "user" }]));
       res.end(JSON.stringify({ results: [], ok: true }));
     });
